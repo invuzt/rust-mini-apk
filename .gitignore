@@ -1,0 +1,13 @@
+/.target
+/build
+/.dart_tool
+/.packages
+/.pub-cache
+/.pub
+/android/app/debug
+/android/app/profile
+/android/app/release
+*.keystore
+*.jks
+*_base64.txt
+.env
