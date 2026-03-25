@@ -1,0 +1,47 @@
+name: Build & Official Sign Odfiz
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      # Kita gunakan SDK yang sudah ada di Runner, tapi kita paksa instal Platform 30
+      - name: Install Android Platform 30
+        run: |
+          # Gunakan path default Android SDK di GitHub Runner
+          SDK_MANAGER=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager
+          echo "y" | $SDK_MANAGER --sdk_root=$ANDROID_SDK_ROOT "platforms;android-30" "build-tools;30.0.3"
+
+      - name: Install cargo-apk
+        run: cargo install cargo-apk
+
+      - name: Build APK
+        run: |
+          # Beritahu cargo-apk lokasi SDK yang benar
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          cargo apk build
+
+      - name: Align & Sign APK
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > odfiz.keystore
+          RAW_APK=$(find target/debug/apk/ -name "*.apk" | head -1)
+          
+          # Gunakan path absolut ke build-tools
+          BUILD_TOOLS=$ANDROID_SDK_ROOT/build-tools/30.0.3
+          
+          $BUILD_TOOLS/zipalign -v 4 $RAW_APK odfiz-aligned.apk
+          
+          $BUILD_TOOLS/apksigner sign --ks odfiz.keystore             --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}"             --out odfiz-mini-official.apk             odfiz-aligned.apk
+
+      - name: Upload Final APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Odfiz-Mini-Official
+          path: odfiz-mini-official.apk
